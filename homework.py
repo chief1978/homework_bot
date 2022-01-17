@@ -133,11 +133,11 @@ def main():
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
-    
+
     message = 'homework_bot started ...'
     logging.info(message)
     send_message(bot, message)
-    
+
     while True:
         try:
             response = get_api_answer(current_timestamp)
