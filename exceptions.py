@@ -1,2 +1,2 @@
-class API_Yandex_Practcum_Exception(Exception):
+class API_Ya_Practicum_Exception_Endpoint(Exception):
     pass

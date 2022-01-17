@@ -41,28 +41,68 @@ def send_message(bot, message):
 def get_api_answer(current_timestamp=int(time.time())) -> dict:
     # current_timestamp = 0
     params = {'from_date': current_timestamp}
-    #params = {}
+    # params = {}
     homework_statuses = requests.get(
         ENDPOINT,
         headers=HEADERS,
         params=params
     )
     answer_code = homework_statuses.status_code
-    if answer_code is not HTTPStatus.OK:
-        message = f'API Yandex практикума вернул код {answer_code}'
-        raise exp.API_Yandex_Practcum_Exception(message)
+    if answer_code != HTTPStatus.OK:
+        message = f'API Yandex практикума вернул код {answer_code} <> 200 OK.'
+        raise exp.API_Ya_Practicum_Exception(message)
 
-    return dict(homework_statuses.json())
+    try:
+        return dict(homework_statuses.json())
+    except Exception:
+        raise ValueError(
+            'Не удалось преобразовать ответ API к нужному типу данных'
+        )
 
 
 def check_response(response) -> dict:
-    if response['homeworks']:
-        return response['homeworks']
 
-    return dict()
+    if not(type(response) is dict):
+        message = f'API вернул ответ некорректного типа: {response}'
+        logging.error(message)
+        raise TypeError(message)
+
+    if 'homeworks' not in response:
+        message = f'В ответе отсуствует ключ homeworks: {response}'
+        logging.error(message)
+        raise TypeError()
+        return list()
+
+    if not(type(response['homeworks']) is list):
+        message = f'API вернул ответ некорректного типа: {response}'
+        logging.error(message)
+        raise TypeError(message)
+
+    if len(response['homeworks']) < 1:
+        message = f'Получен пустой список: {response}'
+        logging.debug(message)
+        raise ValueError()
+        return dict()
+
+    return response['homeworks']
 
 
 def parse_status(homework) -> str:
+    if 'homework_name' not in homework:
+        message = f'В ответе отсутствует ключ homework_name: {homework}'
+        logging.error(message)
+        raise KeyError(message)
+
+    if 'status' not in homework:
+        message = f'В ответе отсутствует ключ status: {homework}'
+        logging.error(message)
+        raise KeyError(message)
+
+    if homework['status'] not in HOMEWORK_STATUSES.keys():
+        message = f'Статус работы отличается от ожидаемых: {homework}'
+        logging.error(message)
+        raise ValueError(message)
+
     homework_name = homework['homework_name']
     homework_status = homework['status']
     verdict = HOMEWORK_STATUSES[homework_status]
@@ -99,7 +139,6 @@ def main():
     while True:
         try:
             response = get_api_answer(current_timestamp)
-            print(response)
             for homework in check_response(response):
                 message = parse_status(homework)
                 send_message(bot, message)
@@ -107,14 +146,34 @@ def main():
             current_timestamp = int(time.time())
             time.sleep(RETRY_TIME)
 
-        except exp.API_Yandex_Practcum_Exception as error:
-            message = f'Сбой в работе программы: {error}'
+        except KeyboardInterrupt:
+            message = 'Выход из программы: ctrl+c'
+            logging.info(message)
+            send_message(bot, message)
+            return
+
+        except exp.API_Ya_Practicum_Exception_Endpoint as error:
+            message = f'Сбой в работе Endpoint: {error}'
             logging.error(message)
+            send_message(bot, message)
+            time.sleep(RETRY_TIME)
+
+        except ValueError as error:
+            message = f'Полученные данные не корректны: {error}'
+            logging.error(message)
+            send_message(bot, message)
+            time.sleep(RETRY_TIME)
+
+        except TypeError as error:
+            message = f'Получены данные не того типа: {error}'
+            logging.error(message)
+            send_message(bot, message)
             time.sleep(RETRY_TIME)
 
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             logging.error(message)
+            send_message(bot, message)
             time.sleep(RETRY_TIME)
         else:
             ...
