@@ -71,7 +71,6 @@ def check_response(response) -> dict:
         message = f'В ответе отсуствует ключ homeworks: {response}'
         logging.error(message)
         raise TypeError()
-        return list()
 
     if not(type(response['homeworks']) is list):
         message = f'API вернул ответ некорректного типа: {response}'
@@ -81,8 +80,7 @@ def check_response(response) -> dict:
     if len(response['homeworks']) < 1:
         message = f'Получен пустой список: {response}'
         logging.debug(message)
-        raise ValueError()
-        return dict()
+        # raise ValueError()
 
     return response['homeworks']
 
@@ -135,7 +133,11 @@ def main():
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
-
+    
+    message = 'homework_bot started ...'
+    logging.info(message)
+    send_message(bot, message)
+    
     while True:
         try:
             response = get_api_answer(current_timestamp)
@@ -147,7 +149,7 @@ def main():
             time.sleep(RETRY_TIME)
 
         except KeyboardInterrupt:
-            message = 'Выход из программы: ctrl+c'
+            message = 'homework_bot stoped: ctrl+c'
             logging.info(message)
             send_message(bot, message)
             return
