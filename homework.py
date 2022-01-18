@@ -31,17 +31,36 @@ HOMEWORK_STATUSES = {
 
 LOG_MESSAGES = {
     'missed_env': 'Отсутствуют переменные окружения',
+    'wrong_status_code': 'API Yandex практикума вернул код <> OK',
+    'error_tranform_response_to_diсt':
+        'Не удалось преобразовать ответ к словарю',
+    'error_send_message': 'Ошибка отправки сообщения',
+    'succesfully_send_message': 'Сообщение успешно отправлено',
+    'missed_key': 'В ответе отсуствует ключ',
+    'wrong_type': 'API вернул ответ некорректного типа',
+    'empty_list': 'Получен пустой список',
+    'wrong_status': 'Статус работы отличается от ожидаемых',
 }
 
 
-def send_message(bot, message):
-    bot.send_message(TELEGRAM_CHAT_ID, message)
+def send_message(bot: telegram.Bot, message: str) -> None:
+    """Отправка сообщений в телеграмм"""
+
+    try:
+        bot.send_message(TELEGRAM_CHAT_ID, message)
+        logging.info(f'{LOG_MESSAGES["succesfully_send_message"]}: {message}')
+    except Exception as error:
+        raise exp.Telegram_Exception(
+            f'{LOG_MESSAGES["error_send_message"]}: {error}'
+        )
 
 
 def get_api_answer(current_timestamp=int(time.time())) -> dict:
-    # current_timestamp = 0
+    """Выполняет запрос к API на получение новых статусом ДР
+       Полученный json-массив преобразуется в словарь
+       На входе временная метка"""
+
     params = {'from_date': current_timestamp}
-    # params = {}
     homework_statuses = requests.get(
         ENDPOINT,
         headers=HEADERS,
@@ -49,56 +68,56 @@ def get_api_answer(current_timestamp=int(time.time())) -> dict:
     )
     answer_code = homework_statuses.status_code
     if answer_code != HTTPStatus.OK:
-        message = f'API Yandex практикума вернул код {answer_code} <> 200 OK.'
+        message = f'{LOG_MESSAGES["wrong_status_code"]}: {answer_code}'
         raise exp.API_Ya_Practicum_Exception(message)
 
     try:
         return dict(homework_statuses.json())
     except Exception:
         raise ValueError(
-            'Не удалось преобразовать ответ API к нужному типу данных'
+            LOG_MESSAGES['error_tranform_response_to_diсt']
         )
 
 
-def check_response(response) -> dict:
+def check_response(response: dict) -> list:
+    """Выполняет проверку ответа API на соотвествие
+       Возвращает список домашних работ с корректными и
+       изменёнными статусами"""
 
     if not(type(response) is dict):
-        message = f'API вернул ответ некорректного типа: {response}'
-        logging.error(message)
+        message = f'{LOG_MESSAGES["wrong_type"]}: {response}'
         raise TypeError(message)
 
     if 'homeworks' not in response:
-        message = f'В ответе отсуствует ключ homeworks: {response}'
-        logging.error(message)
+        message = f'{LOG_MESSAGES["missed_key"]} homeworks: {response}'
         raise TypeError()
 
     if not(type(response['homeworks']) is list):
-        message = f'API вернул ответ некорректного типа: {response}'
-        logging.error(message)
+        message = f'{LOG_MESSAGES["wrong_type"]}: {response}'
         raise TypeError(message)
 
     if len(response['homeworks']) < 1:
-        message = f'Получен пустой список: {response}'
+        message = f'{LOG_MESSAGES["empty_list"]}: {response}'
         logging.debug(message)
-        # raise ValueError()
 
     return response['homeworks']
 
 
-def parse_status(homework) -> str:
+def parse_status(homework: list) -> str:
+    """Получение информации о статусе домашней работы
+       Извлекает информацию по ключам homework_name и status из списка
+       Возвращает строку с информацией о новом статусе"""
+
     if 'homework_name' not in homework:
-        message = f'В ответе отсутствует ключ homework_name: {homework}'
-        logging.error(message)
+        message = f'{LOG_MESSAGES["missed_key"]} homework_name: {homework}'
         raise KeyError(message)
 
     if 'status' not in homework:
-        message = f'В ответе отсутствует ключ status: {homework}'
-        logging.error(message)
+        message = f'{LOG_MESSAGES["missed_key"]} status: {homework}'
         raise KeyError(message)
 
     if homework['status'] not in HOMEWORK_STATUSES.keys():
-        message = f'Статус работы отличается от ожидаемых: {homework}'
-        logging.error(message)
+        message = (f'{LOG_MESSAGES["wrong_status"]}: {homework["status"]}')
         raise ValueError(message)
 
     homework_name = homework['homework_name']
@@ -109,7 +128,8 @@ def parse_status(homework) -> str:
 
 
 def check_tokens() -> bool:
-    """Проверка переменных окружения"""
+    """Проверка наличия переменных окружения
+       return true or false"""
 
     check_env_vars = {
         'PRACTICUM_TOKEN': PRACTICUM_TOKEN,
@@ -120,7 +140,7 @@ def check_tokens() -> bool:
     for var, val in check_env_vars.items():
         if val is None:
             result = False
-            logging.critical(f'Отсутствует переменная окружения: {var}')
+            logging.critical(f'{LOG_MESSAGES["missed_env"]}: {var}')
 
     return result
 
@@ -138,13 +158,13 @@ def main():
     logging.info(message)
     send_message(bot, message)
 
+    last_message = ''
     while True:
         try:
             response = get_api_answer(current_timestamp)
             for homework in check_response(response):
                 message = parse_status(homework)
                 send_message(bot, message)
-                logging.info(f'сообщение успешно отправлено {message}')
             current_timestamp = int(time.time())
             time.sleep(RETRY_TIME)
 
@@ -154,31 +174,21 @@ def main():
             send_message(bot, message)
             return
 
-        except exp.API_Ya_Practicum_Exception_Endpoint as error:
-            message = f'Сбой в работе Endpoint: {error}'
-            logging.error(message)
-            send_message(bot, message)
-            time.sleep(RETRY_TIME)
-
-        except ValueError as error:
-            message = f'Полученные данные не корректны: {error}'
-            logging.error(message)
-            send_message(bot, message)
-            time.sleep(RETRY_TIME)
-
-        except TypeError as error:
-            message = f'Получены данные не того типа: {error}'
-            logging.error(message)
-            send_message(bot, message)
-            time.sleep(RETRY_TIME)
-
-        except Exception as error:
+        except exp.Telegram_Exception as error:
             message = f'Сбой в работе программы: {error}'
             logging.error(message)
-            send_message(bot, message)
             time.sleep(RETRY_TIME)
-        else:
-            ...
+
+        except (exp.API_Ya_Practicum_Exception_Endpoint,
+                ValueError,
+                TypeError,
+                Exception) as error:
+            message = f'Сбой в работе программы: {error}'
+            logging.error(message)
+            if last_message != message:
+                send_message(bot, message)
+                last_message = message
+            time.sleep(RETRY_TIME)
 
 
 if __name__ == '__main__':
