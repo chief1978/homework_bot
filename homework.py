@@ -1,3 +1,9 @@
+"""
+homework.py.
+
+Бот для отправки сообщений в телеграм изменения статуса домашних работ
+Яндекс практикум
+"""
 import logging
 import os
 import time
@@ -10,6 +16,7 @@ import telegram
 
 from dotenv import load_dotenv
 
+import constants as const
 import exceptions as exp
 
 load_dotenv()
@@ -23,40 +30,23 @@ ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
 
-HOMEWORK_STATUSES = {
-    'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
-    'reviewing': 'Работа взята на проверку ревьюером.',
-    'rejected': 'Работа проверена: у ревьюера есть замечания.',
-}
-
-LOG_MESSAGES = {
-    'missed_env': 'Отсутствуют переменные окружения',
-    'wrong_status_code': 'API Yandex практикума вернул код <> OK',
-    'error_tranform_response_to_diсt':
-        'Не удалось преобразовать ответ к словарю',
-    'error_send_message': 'Ошибка отправки сообщения',
-    'succesfully_send_message': 'Сообщение успешно отправлено',
-    'missed_key': 'В ответе отсуствует ключ',
-    'wrong_type': 'API вернул ответ некорректного типа',
-    'empty_list': 'Получен пустой список',
-    'wrong_status': 'Статус работы отличается от ожидаемых',
-}
-
-
 def send_message(bot: telegram.Bot, message: str) -> None:
     """Отправка сообщений в телеграмм."""
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
-        logging.info(f'{LOG_MESSAGES["succesfully_send_message"]}: {message}')
+        logging.info(
+            f'{const.LOG_MESSAGES["succesfully_send_message"]}: {message}'
+        )
     except Exception as error:
         raise exp.Telegram_Exception(
-            f'{LOG_MESSAGES["error_send_message"]}: {error}'
+            f'{const.LOG_MESSAGES["error_send_message"]}: {error}'
         )
 
 
 def get_api_answer(current_timestamp=int(time.time())) -> dict:
     """
     Выполняет запрос к API на получение новых статусом ДР.
+
     Полученный json-массив преобразуется в словарь
     На входе временная метка
     """
@@ -68,37 +58,35 @@ def get_api_answer(current_timestamp=int(time.time())) -> dict:
     )
     answer_code = homework_statuses.status_code
     if answer_code != HTTPStatus.OK:
-        message = f'{LOG_MESSAGES["wrong_status_code"]}: {answer_code}'
+        message = f'{const.LOG_MESSAGES["wrong_status_code"]}: {answer_code}'
         raise exp.API_Ya_Practicum_Exception(message)
 
     try:
         return dict(homework_statuses.json())
     except Exception:
         raise ValueError(
-            LOG_MESSAGES['error_tranform_response_to_diсt']
+            const.LOG_MESSAGES['error_tranform_response_to_diсt']
         )
 
 
 def check_response(response: dict) -> list:
     """
     Выполняет проверку ответа API на соотвествие.
+
     Возвращает список домашних работ с корректными и
     изменёнными статусами
     """
-    if not(type(response) is dict):
-        message = f'{LOG_MESSAGES["wrong_type"]}: {response}'
+    if (not(type(response) is dict)
+       or not(type(response['homeworks']) is list)):
+        message = f'{const.LOG_MESSAGES["wrong_type"]}: {response}'
         raise TypeError(message)
 
     if 'homeworks' not in response:
-        message = f'{LOG_MESSAGES["missed_key"]} homeworks: {response}'
+        message = f'{const.LOG_MESSAGES["missed_key"]} homeworks: {response}'
         raise TypeError()
 
-    if not(type(response['homeworks']) is list):
-        message = f'{LOG_MESSAGES["wrong_type"]}: {response}'
-        raise TypeError(message)
-
     if len(response['homeworks']) < 1:
-        message = f'{LOG_MESSAGES["empty_list"]}: {response}'
+        message = f'{const.LOG_MESSAGES["empty_list"]}: {response}'
         logging.debug(message)
 
     return response['homeworks']
@@ -107,33 +95,32 @@ def check_response(response: dict) -> list:
 def parse_status(homework: list) -> str:
     """
     Получение информации о статусе домашней работы.
+
     Извлекает информацию по ключам homework_name и status из списка
     Возвращает строку с информацией о новом статусе
     """
-    if 'homework_name' not in homework:
-        message = f'{LOG_MESSAGES["missed_key"]} homework_name: {homework}'
-        raise KeyError(message)
+    for key in const.HOMEWORK_KEYS:
+        if key not in homework:
+            message = (
+                f'{const.LOG_MESSAGES["missed_key"]} {key}: {homework}'
+            )
+            raise KeyError(message)
 
-    if 'status' not in homework:
-        message = f'{LOG_MESSAGES["missed_key"]} status: {homework}'
-        raise KeyError(message)
-
-    if homework['status'] not in HOMEWORK_STATUSES.keys():
-        message = (f'{LOG_MESSAGES["wrong_status"]}: {homework["status"]}')
+    if homework['status'] not in const.HOMEWORK_STATUSES.keys():
+        message = (
+            f'{const.LOG_MESSAGES["wrong_status"]}: {homework["status"]}'
+        )
         raise ValueError(message)
 
     homework_name = homework['homework_name']
     homework_status = homework['status']
-    verdict = HOMEWORK_STATUSES[homework_status]
+    verdict = const.HOMEWORK_STATUSES[homework_status]
 
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
 def check_tokens() -> bool:
-    """
-    Проверка наличия переменных окружения.
-    return true or false
-    """
+    """Проверка наличия переменных окружения. return true or false."""
     check_env_vars = {
         'PRACTICUM_TOKEN': PRACTICUM_TOKEN,
         'TELEGRAM_TOKEN': TELEGRAM_TOKEN,
@@ -143,7 +130,7 @@ def check_tokens() -> bool:
     for var, val in check_env_vars.items():
         if val is None:
             result = False
-            logging.critical(f'{LOG_MESSAGES["missed_env"]}: {var}')
+            logging.critical(f'{const.LOG_MESSAGES["missed_env"]}: {var}')
 
     return result
 
@@ -156,7 +143,7 @@ def main():
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
 
-    message = 'homework_bot started ...'
+    message = const.LOG_MESSAGES['app_start']
     logging.info(message)
     send_message(bot, message)
 
@@ -171,7 +158,7 @@ def main():
             time.sleep(RETRY_TIME)
 
         except KeyboardInterrupt:
-            message = 'homework_bot stoped: ctrl+c'
+            message = const.LOG_MESSAGES['app_stop']
             logging.info(message)
             send_message(bot, message)
             return
