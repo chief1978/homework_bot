@@ -138,7 +138,8 @@ def check_tokens() -> bool:
 def main():
     """Основная логика работы бота."""
     if not check_tokens():
-        return
+        message = const.LOG_MESSAGES['missed_env']
+        raise EnvironmentError(message)
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
@@ -156,6 +157,10 @@ def main():
                 send_message(bot, message)
             current_timestamp = int(time.time())
             time.sleep(RETRY_TIME)
+
+        except EnvironmentError as error:
+            logging.info(error)
+            return
 
         except KeyboardInterrupt:
             message = const.LOG_MESSAGES['app_stop']
