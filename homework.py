@@ -56,9 +56,11 @@ def send_message(bot: telegram.Bot, message: str) -> None:
 
 
 def get_api_answer(current_timestamp=int(time.time())) -> dict:
-    """Выполняет запрос к API на получение новых статусом ДР
-       Полученный json-массив преобразуется в словарь
-       На входе временная метка"""
+    """
+    Выполняет запрос к API на получение новых статусом ДР
+    Полученный json-массив преобразуется в словарь
+    На входе временная метка
+    """
 
     params = {'from_date': current_timestamp}
     homework_statuses = requests.get(
@@ -80,9 +82,11 @@ def get_api_answer(current_timestamp=int(time.time())) -> dict:
 
 
 def check_response(response: dict) -> list:
-    """Выполняет проверку ответа API на соотвествие
-       Возвращает список домашних работ с корректными и
-       изменёнными статусами"""
+    """
+    Выполняет проверку ответа API на соотвествие
+    Возвращает список домашних работ с корректными и
+    изменёнными статусами
+    """
 
     if not(type(response) is dict):
         message = f'{LOG_MESSAGES["wrong_type"]}: {response}'
@@ -104,9 +108,11 @@ def check_response(response: dict) -> list:
 
 
 def parse_status(homework: list) -> str:
-    """Получение информации о статусе домашней работы
-       Извлекает информацию по ключам homework_name и status из списка
-       Возвращает строку с информацией о новом статусе"""
+    """
+    Получение информации о статусе домашней работы
+    Извлекает информацию по ключам homework_name и status из списка
+    Возвращает строку с информацией о новом статусе
+    """
 
     if 'homework_name' not in homework:
         message = f'{LOG_MESSAGES["missed_key"]} homework_name: {homework}'
@@ -128,8 +134,10 @@ def parse_status(homework: list) -> str:
 
 
 def check_tokens() -> bool:
-    """Проверка наличия переменных окружения
-       return true or false"""
+    """
+    Проверка наличия переменных окружения
+    return true or false
+    """
 
     check_env_vars = {
         'PRACTICUM_TOKEN': PRACTICUM_TOKEN,
